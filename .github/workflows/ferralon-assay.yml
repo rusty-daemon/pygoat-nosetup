@@ -73,6 +73,24 @@ on:
   schedule:
     - cron: "17 3 * * *" # daily, off-peak (03:17 UTC)
   workflow_dispatch: # the "Run workflow" button — run the assay on demand
+    # Test knobs (workshop-g8uv.1.1). Left empty, a run behaves exactly as it did before these inputs existed;
+    # the schedule, push and pull_request events never set them.
+    inputs:
+      scanner_version:
+        description: "Scanner release to fetch, for example v0.6.0 (empty = v0.5.0, this workflow's default)"
+        required: false
+        default: ""
+        type: string
+      corpus_policy:
+        description: "Scan window when the console is not asked: published-24h, published-7d, published-30d or full (empty = published-24h)"
+        required: false
+        default: ""
+        type: string
+      link_to_console:
+        description: "Post to the Ferralon console: true or false (empty = true)"
+        required: false
+        default: ""
+        type: string
   repository_dispatch:
     types: [ferralon-advisory-rescan]
 
@@ -103,7 +121,7 @@ jobs:
     # the assay step passes it on as its link-to-console input. Set it to false — or delete
     # the line, which does the same thing — and nothing in this workflow contacts Ferralon.
     env:
-      FERRALON_LINK_TO_CONSOLE: true
+      FERRALON_LINK_TO_CONSOLE: ${{ inputs.link_to_console || 'true' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # Reads this repository's scan window from your Ferralon console at the start of each
@@ -131,7 +149,7 @@ jobs:
         env:
           LINK_TO_CONSOLE: ${{ env.FERRALON_LINK_TO_CONSOLE == 'true' }}
           SCAN_WINDOW_URL: https://api.ferralon.com/policy/scan-window
-          FALLBACK_POLICY: published-24h
+          FALLBACK_POLICY: ${{ inputs.corpus_policy || 'published-24h' }}
         run: |
           set +e +o pipefail
           attempt_secs=3
@@ -196,6 +214,7 @@ jobs:
       - id: assay
         uses: ferralon-ai/ferralon-assay@0cd22c484115c09389f9902c26ab3c0ead5d099d
         with:
+          scanner-version: ${{ inputs.scanner_version || 'v0.5.0' }}
           # Links this repository's scans to your Ferralon console. It reads the job's
           # FERRALON_LINK_TO_CONSOLE (above), the same switch the scan-window step reads,
           # so change it there, not here. Set to false, the scan runs standalone: nothing
